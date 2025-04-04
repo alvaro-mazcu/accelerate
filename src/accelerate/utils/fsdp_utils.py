@@ -435,7 +435,8 @@ def fsdp2_load_full_state_dict(accelerator, model: torch.nn.Module, full_sd: dic
 
     Args:
         accelerator (`Accelerator`): The accelerator instance
-        model (`torch.nn.Module`): The model to load the state dict into, expected to be on meta device or a VRAM spike can occur
+        model (`torch.nn.Module`):
+            The model to load the state dict into, expected to be on meta device or a VRAM spike can occur
         full_sd (`dict`): The full state dict to load, can only be on rank 0
     """
     import torch.distributed as dist
@@ -495,8 +496,7 @@ def fsdp2_switch_optimizer_parameters(optimizer: torch.optim.Optimizer, mapping:
 
 def get_non_persistent_buffer_fqns(model: torch.nn.Module) -> set[str]:
     """
-    Recursively finds the Fully Qualified Names (FQNs) of all non-persistent buffers
-    within a PyTorch model.
+    Recursively finds the Fully Qualified Names (FQNs) of all non-persistent buffers within a PyTorch model.
 
     Args:
         model (torch.nn.Module): The model to inspect.
