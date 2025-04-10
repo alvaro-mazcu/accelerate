@@ -231,6 +231,10 @@ class Accelerator:
             - `"comet_ml"`
             If `"all"` is selected, will pick up all available trackers in the environment and initialize them. Can
             also accept implementations of `GeneralTracker` for custom trackers, and can be combined with `"all"`.
+        dp_size (`int`, *optional*):
+            Data parallel size. **Currently** only used to compose tp + ddp/fsdp.
+        tp_size (`int`, *optional*):
+            Tensor parallel size. **Currently** only used to compose tp + ddp/fsdp.
         project_config ([`~utils.ProjectConfiguration`], *optional*):
             A configuration for how saving the state can be handled.
         project_dir (`str`, `os.PathLike`, *optional*):
@@ -281,6 +285,8 @@ class Accelerator:
         megatron_lm_plugin: MegatronLMPlugin | None = None,
         rng_types: list[str | RNGType] | None = None,
         log_with: str | LoggerType | GeneralTracker | list[str | LoggerType | GeneralTracker] | None = None,
+        dp_size: int | None = None,
+        tp_size: int | None = None,
         project_dir: str | os.PathLike | None = None,
         project_config: ProjectConfiguration | None = None,
         gradient_accumulation_plugin: GradientAccumulationPlugin | None = None,
@@ -380,7 +386,6 @@ class Accelerator:
 
             if not compare_versions("transformers", ">=", BETA_TP_AVAILABLE_TRANSFORMERS_VERSION):
                 raise ValueError(f"TP requires transformers >= {BETA_TP_AVAILABLE_TRANSFORMERS_VERSION}")
-
         if fsdp_plugin is None:  # init from env variables
             fsdp_plugin = (
                 FullyShardedDataParallelPlugin() if os.environ.get("ACCELERATE_USE_FSDP", "false") == "true" else None
@@ -437,9 +442,9 @@ class Accelerator:
         self.has_fp8_handler = False
         if kwargs_handlers is not None:
             for handler in kwargs_handlers:
-                assert isinstance(
-                    handler, KwargsHandler
-                ), f"Unsupported kwargs handler passed: {handler}, must be one that inherits `accelerate.utils.KwargsHandler`."
+                assert isinstance(handler, KwargsHandler), (
+                    f"Unsupported kwargs handler passed: {handler}, must be one that inherits `accelerate.utils.KwargsHandler`."
+                )
                 # Add the handler class to the set of found handlers
                 if handler.__class__ in found_handlers:
                     raise ValueError(f"You can only pass one {handler.__class__} in `kwargs_handlers`.")
@@ -461,6 +466,19 @@ class Accelerator:
             _from_accelerator=True,
             **kwargs,
         )
+
+        if torch_tp_plugin is not None:
+            mesh_dims = (tp_size,)
+            mesh_names = ("tp",)
+            if dp_size is not None:
+                mesh_dims = (dp_size,) + mesh_dims
+                mesh_names = ("dp",) + mesh_names
+
+            self.dp_tp_mesh = torch.distributed.init_device_mesh(
+                self.device.type, mesh_dims, mesh_dim_names=mesh_names
+            )
+            # TODO: get rid of torch parallel plugin probably
+            self.state.torch_tp_plugin.set_device_mesh(self.dp_tp_mesh["tp"])
 
         self._mixed_precision = mixed_precision
         # Check for automatic FP8 recipe creation

@@ -1835,7 +1835,7 @@ class FullyShardedDataParallelPlugin:
 
         #  Single warning for all deprecation warnings due to FSDP2 conversion
         if _fsdp2_warnings:
-            logger.warning("Multiple deprecation warnings due to FSDP2 conversion:" "\n".join(_fsdp2_warnings))
+            logger.warning("Multiple deprecation warnings due to FSDP2 conversion:\n".join(_fsdp2_warnings))
 
     def set_state_dict_type(self, state_dict_type=None):
         """
@@ -2048,6 +2048,15 @@ class TorchTensorParallelPlugin:
         # device mesh is not used for model sharding
         # it is only used for preparing data loader
         self.torch_device_mesh = init_device_mesh(device, (self.tp_size,), mesh_dim_names=(mesh_dim_name,))
+
+    def set_device_mesh(self, device_mesh):
+        """
+        Set the device mesh for the plugin.
+        This is used when composing TP with DDP/FSDP2
+        """
+        if not isinstance(device_mesh, torch.distributed.DeviceMesh):
+            raise ValueError(f"device_mesh should be of type `torch.distributed.DeviceMesh`, got {type(device_mesh)}")
+        self.torch_device_mesh = device_mesh
 
 
 @dataclass
