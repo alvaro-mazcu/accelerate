@@ -467,14 +467,14 @@ class Accelerator:
             **kwargs,
         )
 
-        if torch_tp_plugin is not None:
+        if self.state.torch_tp_plugin is not None:
             mesh_dims = (tp_size,)
             mesh_names = ("tp",)
             if dp_size is not None:
                 mesh_dims = (dp_size,) + mesh_dims
                 mesh_names = ("dp",) + mesh_names
 
-            self.dp_tp_mesh = torch.distributed.init_device_mesh(
+            self._dp_tp_mesh = torch.distributed.init_device_mesh(
                 self.device.type, mesh_dims, mesh_dim_names=mesh_names
             )
             # TODO: get rid of torch parallel plugin probably
@@ -497,7 +497,7 @@ class Accelerator:
                 raise ImportError(
                     "Tried to train with `fp8` and auto-detect backend, but no FP8-compatible backend was installed. "
                     "Valid backends are: `torchao`, `transformer-engine`, and `msamp`."
-                )
+                    )
 
         self.delayed_fp8_autocast = False
         if self.has_fp8_handler:
@@ -2230,6 +2230,8 @@ class Accelerator:
         Prepare the device mesh for distributed training. The dataloader will determine how to load data based on the
         device mesh.
         """
+        if self.dp_tp_mesh:
+            return self.dp_tp_mesh
         if self.state.torch_tp_plugin:
             return self.state.torch_tp_plugin.torch_device_mesh
         elif self.distributed_type == DistributedType.DEEPSPEED and hasattr(self.state, "ds_device_mesh"):
@@ -3850,3 +3852,10 @@ class Accelerator:
         elif self.state.deepspeed_plugin is not None and self.state.deepspeed_plugin.enable_msamp:
             return "MSAMP"
         return None
+
+    @property
+    def dp_tp_mesh(self):
+        """
+        Returns the mesh used for DP/TP training.
+        """
+        return self._dp_tp_mesh
